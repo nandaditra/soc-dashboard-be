@@ -109,12 +109,13 @@ exports.getPhishingById = (req, res) => {
 };
 
 exports.searchPhishing = (req, res) => {
-  const keyword = req.query.keyword || "";
+  const keyword = req.query.keyword?.trim() || "";
   const page = parseInt(req.query.page) || 1;
   const limit = 10;
   const offset = (page - 1) * limit;
 
   const searchQuery = `%${keyword}%`;
+
   const sql = `
     SELECT * FROM phishing_reports
     WHERE url LIKE ?
@@ -125,19 +126,18 @@ exports.searchPhishing = (req, res) => {
   db.query(sql, [searchQuery, limit, offset], (err, results) => {
     if (err) {
       console.error("Error in search query:", err);
-      return res.status(500).json({ message: "Search error" });
+      return res.status(500).json({ message: "Search error", error: err });
     }
 
-    // Count total matching rows
     const countSql = `
-      SELECT COUNT(*) as total FROM phishing_reports
-      WHERE name LIKE ? OR url LIKE ? OR domain LIKE ?
+      SELECT COUNT(*) AS total FROM phishing_reports
+      WHERE url LIKE ?
     `;
 
-    db.query(countSql, [searchQuery, searchQuery, searchQuery], (err, countResults) => {
+    db.query(countSql, [searchQuery], (err, countResults) => {
       if (err) {
         console.error("Error in count query:", err);
-        return res.status(500).json({ message: "Count error" });
+        return res.status(500).json({ message: "Count error", error: err });
       }
 
       const totalItems = countResults[0].total;
@@ -157,15 +157,58 @@ exports.searchPhishing = (req, res) => {
 
 exports.updatePhishing = (req, res) => {
   const { id } = req.params;
-  const { name, url, domain, updated_at } = req.body;
-  console.log(id,name, url, domain, updated_at)
-
-  if (!name || !url || !domain || !updated_at) {
+  const { 
+    url, 
+    registrar_reported,
+    registrar_resolved,  
+    safebrowsing_reported,  
+    safebrowsing_resolved, 
+    takedown_reported,  
+    takedown_resolved,  
+    ddos_reported,  
+    ddos_resolved,  
+    komdigi_reported,  
+    komdigi_resolved 
+  } = req.body;
+  
+  // Proper field validation using OR (||)
+  if (!url || !registrar_reported || !registrar_resolved || !safebrowsing_reported || !safebrowsing_resolved ||
+      !takedown_reported || !takedown_resolved || !ddos_reported || !ddos_resolved ||
+      !komdigi_reported || !komdigi_resolved) {
     return res.status(400).json({ message: "All fields are required." });
   }
 
-  const sql = "UPDATE phishing_urls SET name = ?, url = ?, domain = ?, updated_at = ? WHERE id = ?";
-  db.query(sql, [name, url, domain, updated_at, id], (err, _) => {
+  const sql = `
+    UPDATE phishing_reports 
+    SET 
+      url = ?,
+      registrar_reported = ?, 
+      registrar_resolved = ?, 
+      safebrowsing_reported = ?, 
+      safebrowsing_resolved = ?, 
+      takedown_reported = ?, 
+      takedown_resolved = ?, 
+      ddos_reported = ?,
+      ddos_resolved = ?,
+      komdigi_reported = ?,
+      komdigi_resolved = ?
+    WHERE id = ?
+  `;
+
+  db.query(sql, [
+    url,
+    registrar_reported,
+    registrar_resolved,  
+    safebrowsing_reported,  
+    safebrowsing_resolved, 
+    takedown_reported,  
+    takedown_resolved,  
+    ddos_reported,  
+    ddos_resolved,  
+    komdigi_reported,  
+    komdigi_resolved,
+    id
+  ], (err, _) => {
     if (err) return res.status(500).json({ message: "Server error", error: err });
     res.status(200).json({ message: "Phishing entry updated successfully" });
   });
@@ -174,9 +217,7 @@ exports.updatePhishing = (req, res) => {
 exports.deletePhishing = (req, res) => {
   const { id } = req.params;
 
-  console.log(id)
-
-  const sql = "DELETE FROM phishing_urls WHERE id = ?";
+  const sql = "DELETE FROM phishing_reports WHERE id = ?";
   db.query(sql, [id], (err, result) => {
     if (err) {
       console.error("Error deleting entry:", err);
