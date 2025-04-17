@@ -157,59 +157,47 @@ exports.searchPhishing = (req, res) => {
 
 exports.updatePhishing = (req, res) => {
   const { id } = req.params;
-  const { 
-    url, 
-    registrar_reported,
-    registrar_resolved,  
-    safebrowsing_reported,  
-    safebrowsing_resolved, 
-    takedown_reported,  
-    takedown_resolved,  
-    ddos_reported,  
-    ddos_resolved,  
-    komdigi_reported,  
-    komdigi_resolved 
-  } = req.body;
-  
-  // Proper field validation using OR (||)
-  if (!url || !registrar_reported || !registrar_resolved || !safebrowsing_reported || !safebrowsing_resolved ||
-      !takedown_reported || !takedown_resolved || !ddos_reported || !ddos_resolved ||
-      !komdigi_reported || !komdigi_resolved) {
-    return res.status(400).json({ message: "All fields are required." });
+  const updates = req.body;
+
+  if (!id) {
+    return res.status(400).json({ message: "ID is required." });
   }
 
-  const sql = `
-    UPDATE phishing_reports 
-    SET 
-      url = ?,
-      registrar_reported = ?, 
-      registrar_resolved = ?, 
-      safebrowsing_reported = ?, 
-      safebrowsing_resolved = ?, 
-      takedown_reported = ?, 
-      takedown_resolved = ?, 
-      ddos_reported = ?,
-      ddos_resolved = ?,
-      komdigi_reported = ?,
-      komdigi_resolved = ?
-    WHERE id = ?
-  `;
+  // Filter only the fields allowed to be updated
+  const allowedFields = [
+    "url",
+    "registrar_reported",
+    "registrar_resolved",
+    "safebrowsing_reported",
+    "safebrowsing_resolved",
+    "takedown_reported",
+    "takedown_resolved",
+    "ddos_reported",
+    "ddos_resolved",
+    "komdigi_reported",
+    "komdigi_resolved"
+  ];
 
-  db.query(sql, [
-    url,
-    registrar_reported,
-    registrar_resolved,  
-    safebrowsing_reported,  
-    safebrowsing_resolved, 
-    takedown_reported,  
-    takedown_resolved,  
-    ddos_reported,  
-    ddos_resolved,  
-    komdigi_reported,  
-    komdigi_resolved,
-    id
-  ], (err, _) => {
+  const fieldsToUpdate = Object.entries(updates).filter(
+    ([key, value]) => allowedFields.includes(key) && value !== undefined
+  );
+
+  if (fieldsToUpdate.length === 0) {
+    return res.status(400).json({ message: "No valid fields provided to update." });
+  }
+
+  const sqlSetPart = fieldsToUpdate.map(([key]) => `${key} = ?`).join(", ");
+  const values = fieldsToUpdate.map(([, value]) => value);
+
+  const sql = `UPDATE phishing_reports SET ${sqlSetPart} WHERE id = ?`;
+
+  db.query(sql, [...values, id], (err, result) => {
     if (err) return res.status(500).json({ message: "Server error", error: err });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Phishing entry not found." });
+    }
+
     res.status(200).json({ message: "Phishing entry updated successfully" });
   });
 };
